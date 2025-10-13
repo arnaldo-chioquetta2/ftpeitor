@@ -131,7 +131,7 @@ namespace FTPc
 
         private void SearchFiles(DirectoryInfo info)
         {
-            List<string> extensoesPermitidas = new List<string> { ".php", ".js", ".css" , ".html" };
+            List<string> extensoesPermitidas = new List<string> { ".php", ".js", ".css" , ".html", ".apk" };
             FileInfo[] arquivos = info.GetFiles()
                 .Where(arquivo => extensoesPermitidas.Contains(arquivo.Extension.ToLower()))
                 .OrderByDescending(arquivo => arquivo.CreationTime)
