@@ -1,0 +1,123 @@
+## 📄 Documentação Técnica do Projeto "FTPeia"
+
+### 1. Visão Geral  
+Aplicação desktop em Windows Forms que monitora uma pasta local e envia automaticamente o arquivo mais recentemente modificado (entre extensões pré-definidas) para um servidor FTP configurado. O envio é semi-automático: ocorre após detecção de mudança ou por acionamento manual, com interface visual minimalista e feedback em tempo real.
+
+---
+
+### 2. Tecnologias Utilizadas  
+
+| Categoria | Tecnologia |
+|---------|-----------|
+| **Linguagem** | C# (.NET Framework – Windows Desktop) |
+| **Interface** | Windows Forms (`System.Windows.Forms`) |
+| **Protocolo de rede** | FTP nativo via `System.Net.FtpWebRequest` |
+| **Persistência** | Arquivo `.ini` usando API do Windows (`Kernel32.dll`) |
+| **Manipulação de arquivos** | `System.IO` (`FileInfo`, `DirectoryInfo`, `FileStream`) |
+| **Gerenciamento de UI** | `ProgressBar`, `Timer`, `MessageBox` |
+
+---
+
+### 3. Integrações com APIs e Serviços  
+
+#### a) **FTP Nativo (.NET Framework)**  
+- Usa `FtpWebRequest` e `FtpWebResponse`  
+- Suporte a portas customizáveis (padrão: 21)  
+- Autenticação via `NetworkCredential`  
+- Modo binário ativado (`UseBinary = true`)  
+- Keep-alive desativado para evitar travamentos  
+
+#### b) **API do Windows – Arquivos INI**  
+- Funções importadas:  
+  - `GetPrivateProfileString` (leitura)  
+  - `WritePrivateProfileString` (gravação)  
+- Local do arquivo: mesmo diretório do executável, com extensão `.ini`  
+- Estrutura hierárquica: seções identificadas por números (`[1]`, `[2]`, etc.) e `[Config]`
+
+#### c) **Teste de Conectividade Integrado**  
+- Método `Testa()` na classe `FTP`:  
+  1. Cria arquivo temporário no servidor  
+  2. Faz upload + download para validar permissões  
+  3. Remove arquivo de teste  
+- Disponível na interface de configuração via botão **"Teste"**
+
+---
+
+### 4. Algoritmos e Lógicas Principais  
+
+#### a) **Detecção do Arquivo Mais Atualizado**  
+- Varredura recursiva de diretórios (ignora `System Volume Information` e `RECYCLER`)  
+- Filtra por extensões: `.php`, `.js`, `.css`, `.html`, `.apk`, `.jpg`  
+- Ordena por `LastWriteTime` (última modificação)  
+- Armazena referência ao arquivo mais recente globalmente
+
+#### b) **Mapeamento de Caminhos para FTP**  
+- Define uma **"Pasta Base Local"** configurada pelo usuário  
+- Remove esse caminho do absoluto para gerar caminho relativo no FTP  
+- Exemplo:  
+  - Local: `C:\Projetos\site\css\style.css`  
+  - PastaBaseFTP: `C:\Projetos\site`  
+  - Caminho FTP resultante: `/css/style.css`
+
+#### c) **Upload com Recuperação de Erros**  
+- Se ocorrer erro **553** (falha ao enviar – geralmente diretório inexistente):  
+  1. Extrai o caminho do diretório alvo  
+  2. Envia comando `MakeDirectory` via FTP  
+  3. Tenta reenviar o arquivo  
+- Feedback visual imediato via `ProgressBar` vinculada dinamicamente
+
+#### d) **Automação Adaptativa**  
+- Timer inicial com contagem regressiva (6 segundos) antes do primeiro envio  
+- Após cada envio bem-sucedido:  
+  - Minimiza a janela  
+  - Reduz o intervalo do timer em 3% (ex: 2000ms → 1940ms)  
+  - Evita envios repetidos do mesmo arquivo (compara nome + data)
+
+#### e) **Gerenciamento de Múltiplas Configurações FTP**  
+- Suporta N servidores FTP  
+- Armazenados em seções numeradas no `.ini` (`[1]`, `[2]`, ...)  
+- Seleção via combobox na tela de configuração  
+- Parâmetros por servidor:  
+  - `nome`, `host`, `user`, `pass`, `CamLocal`, `PastaBaseFTP`, `Porta`
+
+---
+
+### 5. Segurança e Limitações  
+
+#### ⚠️ **Avisos Importantes**  
+- **Credenciais em texto claro**: senhas são armazenadas sem criptografia no arquivo `.ini`  
+- **Sem suporte a FTPS/SSL**: comunicação ocorre em texto puro (não recomendado para redes públicas)  
+- **Dependência do Windows**: uso de `Kernel32.dll` limita portabilidade para outros sistemas
+
+#### ✅ **Boas Práticas Implementadas**  
+- Tratamento de exceções em operações críticas  
+- Validação de existência de diretórios antes da varredura  
+- Feedback visual claro durante uploads e erros
+
+---
+
+### 6. Estrutura do Arquivo de Configuração (`.ini`)  
+
+```ini
+[Config]
+ftp_count=2
+ftpAtu=1
+
+[1]
+nome=Servidor Principal
+host=ftp.meusite.com
+user=admin
+pass=minhasenha
+CamLocal=C:\Projetos\site
+PastaBaseFTP=C:\Projetos\site
+Porta=21
+
+[2]
+nome=Backup APK
+host=192.168.1.100
+user=dev
+pass=123456
+CamLocal=D:\Builds
+PastaBaseFTP=D:\Builds
+Porta=2121
+```
