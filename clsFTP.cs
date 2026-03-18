@@ -125,45 +125,118 @@ namespace FTPc
 
         private bool CriarDiretorioRecursivo(string caminhoRemoto)
         {
-            // Remove barras iniciais e finais
+            // Normaliza caminho: remove barras extras e converte para Unix-style
             caminhoRemoto = caminhoRemoto.Trim('/').Replace("\\", "/");
-            string[] pastas = caminhoRemoto.Split('/');
+            string[] niveis = caminhoRemoto.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
             string caminhoAtual = "";
 
-            foreach (string pasta in pastas)
+            for (int i = 0; i < niveis.Length; i++)
             {
-                if (string.IsNullOrEmpty(pasta)) continue;
-                caminhoAtual += "/" + pasta;
+                string nomeProximo = niveis[i];
+                string caminhoPai = caminhoAtual; // Diretório pai (vazio = raiz)
+                caminhoAtual += "/" + nomeProximo;
 
-                try
+                // ✅ Verifica se o diretório já existe SEM lançar exceção
+                if (!DiretorioExiste(caminhoPai, nomeProximo))
                 {
-                    FtpWebRequest req = (FtpWebRequest)WebRequest.Create($"ftp://{this.ftpIPServidor}:{this.Porta}{caminhoAtual}");
-                    req.Credentials = new NetworkCredential(this.ftpUsuarioID, this.ftpSenha);
-                    req.Method = WebRequestMethods.Ftp.MakeDirectory;
-                    req.KeepAlive = false;
-                    using (var resp = (FtpWebResponse)req.GetResponse())
+                    // ❌ Não existe → cria
+                    if (!CriarDiretorioUnico(caminhoAtual))
                     {
-                        // Diretório criado com sucesso
-                    }
-                }
-                catch (WebException ex)
-                {
-                    // Se o diretório já existe, o servidor pode retornar 550 ou 521 — ignoramos
-                    var response = ex.Response as FtpWebResponse;
-                    if (response != null && (response.StatusCode == FtpStatusCode.ActionNotTakenFileUnavailable ||
-                                             response.StatusCode == FtpStatusCode.ActionNotTakenFileNameNotAllowed))
-                    {
-                        // Diretório já existe — OK
-                        continue;
-                    }
-                    else
-                    {
-                        // Erro real: sem permissão, conexão, etc.
+                        this.Erro = $"Falha ao criar diretório: {caminhoAtual}";
                         return false;
                     }
+                    Console.WriteLine($"✓ Criado: {caminhoAtual}");
+                }
+                else
+                {
+                    // ✅ Já existe → apenas avança
+                    Console.WriteLine($"→ Existente: {caminhoAtual}");
                 }
             }
             return true;
+        }
+
+        /// <summary>
+        /// Verifica se um subdiretório existe dentro de um diretório pai
+        /// usando ListDirectory (sem lançar exceções para decisão lógica)
+        /// </summary>
+        private bool DiretorioExiste(string caminhoPai, string nomeDiretorio)
+        {
+            try
+            {
+                // Monta URL do diretório PAI para listar seu conteúdo
+                string urlPai = $"ftp://{this.ftpIPServidor}:{this.Porta}";
+                if (!string.IsNullOrEmpty(caminhoPai))
+                    urlPai += caminhoPai;
+
+                FtpWebRequest req = (FtpWebRequest)WebRequest.Create(urlPai);
+                req.Credentials = new NetworkCredential(this.ftpUsuarioID, this.ftpSenha);
+                req.Method = WebRequestMethods.Ftp.ListDirectory; // LIST command
+                req.KeepAlive = false;
+                req.UsePassive = true; // Melhor compatibilidade com firewalls
+
+                using (var resp = (FtpWebResponse)req.GetResponse())
+                using (var stream = resp.GetResponseStream())
+                using (var reader = new StreamReader(stream, Encoding.UTF8))
+                {
+                    string linha;
+                    while ((linha = reader.ReadLine()) != null)
+                    {
+                        // Normaliza: remove whitespace e compara case-insensitive
+                        if (linha.Trim().Equals(nomeDiretorio, StringComparison.OrdinalIgnoreCase))
+                            return true;
+                    }
+                    return false; // Não encontrou na lista
+                }
+            }
+            catch (WebException ex)
+            {
+                // ⚠️ Só tratamos exceções reais (conexão, autenticação)
+                // Diretórios inexistentes NÃO devem chegar aqui — ListDirectory retorna lista vazia ou erro 550
+                var response = ex.Response as FtpWebResponse;
+                if (response != null && response.StatusCode == FtpStatusCode.ActionNotTakenFileUnavailable)
+                {
+                    // 550 = diretório pai não existe → filho também não existe
+                    return false;
+                }
+                // Outros erros = falha real
+                this.Erro = $"Erro ao listar diretório '{caminhoPai}': {ex.Message}";
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Cria um único diretório (não recursivo)
+        /// </summary>
+        private bool CriarDiretorioUnico(string caminhoCompleto)
+        {
+            try
+            {
+                FtpWebRequest req = (FtpWebRequest)WebRequest.Create($"ftp://{this.ftpIPServidor}:{this.Porta}{caminhoCompleto}");
+                req.Credentials = new NetworkCredential(this.ftpUsuarioID, this.ftpSenha);
+                req.Method = WebRequestMethods.Ftp.MakeDirectory;
+                req.KeepAlive = false;
+                req.UsePassive = true;
+
+                using (var resp = (FtpWebResponse)req.GetResponse())
+                {
+                    return resp.StatusCode == FtpStatusCode.PathnameCreated ||
+                           resp.StatusCode == FtpStatusCode.CommandOK;
+                }
+            }
+            catch (WebException ex)
+            {
+                var response = ex.Response as FtpWebResponse;
+                if (response != null &&
+                    (response.StatusCode == FtpStatusCode.ActionNotTakenFileUnavailable || // 550
+                     response.StatusCode == FtpStatusCode.ActionNotTakenFilenameNotAllowed)) // 553
+                {
+                    // Diretório já existe (alguns servidores retornam erro em vez de sucesso)
+                    return true;
+                }
+                this.Erro = $"Falha ao criar '{caminhoCompleto}': {ex.Message}";
+                return false;
+            }
         }
 
         private string UploadEmSi(FtpWebRequest requisicaoFTP, FileStream fs)
