@@ -46,6 +46,8 @@ namespace FTPc
             this.label7 = new System.Windows.Forms.Label();
             this.cbFTP = new System.Windows.Forms.ComboBox();
             this.btNovo = new System.Windows.Forms.Button();
+            this.btLog = new System.Windows.Forms.Button();
+            this.chkLog = new System.Windows.Forms.CheckBox();
             this.SuspendLayout();
             // 
             // label1
@@ -199,11 +201,33 @@ namespace FTPc
             this.btNovo.UseVisualStyleBackColor = true;
             this.btNovo.Click += new System.EventHandler(this.btNovo_Click);
             // 
+            // btLog
+            // 
+            this.btLog.Location = new System.Drawing.Point(310, 208);
+            this.btLog.Name = "btLog";
+            this.btLog.Size = new System.Drawing.Size(75, 23);
+            this.btLog.TabIndex = 9;
+            this.btLog.Text = "Ver Log";
+            this.btLog.UseVisualStyleBackColor = true;
+            this.btLog.Click += new System.EventHandler(this.btLog_Click);
+            // 
+            // chkLog
+            // 
+            this.chkLog.AutoSize = true;
+            this.chkLog.Location = new System.Drawing.Point(15, 212);
+            this.chkLog.Name = "chkLog";
+            this.chkLog.Size = new System.Drawing.Size(72, 17);
+            this.chkLog.TabIndex = 16;
+            this.chkLog.Text = "Gerar log";
+            this.chkLog.UseVisualStyleBackColor = true;
+            // 
             // Config
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(397, 240);
+            this.Controls.Add(this.chkLog);
+            this.Controls.Add(this.btLog);
             this.Controls.Add(this.btNovo);
             this.Controls.Add(this.cbFTP);
             this.Controls.Add(this.label7);
@@ -252,5 +276,7 @@ namespace FTPc
         private System.Windows.Forms.Label label7;
         private System.Windows.Forms.ComboBox cbFTP;
         private System.Windows.Forms.Button btNovo;
+        private System.Windows.Forms.Button btLog;
+        private System.Windows.Forms.CheckBox chkLog;
     }
 }

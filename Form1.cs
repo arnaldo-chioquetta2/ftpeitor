@@ -9,11 +9,15 @@ namespace FTPc
 {
     public partial class Tela : Form
     {
+        private const string LogVersao = "LOGSCAN_V5_20260421_0153";
         private FileInfo ArqEsc;
         private INI MeuIni;
         private FTP cFPT;
         private DateTime UltData;
         private DateTime UltDt;
+        private int PastasVisitadas;
+        private int ArquivosElegiveisEncontrados;
+        private int ArquivosAnalisados;
         private int PassoTimer = 0;
         private int Transferencias = 0;        
         private float TempoAtual = 2000;
@@ -22,6 +26,51 @@ namespace FTPc
         private string host = ""; 
         private string ftpAtu = "";
         private string UltNome = "";
+
+        private void Log(string message)
+        {
+            ExecutionLog.Write(message);
+        }
+
+        private static string NormalizarCaminhoLocal(string caminho)
+        {
+            if (string.IsNullOrWhiteSpace(caminho))
+                return "";
+
+            return Path.GetFullPath(caminho).TrimEnd('\\');
+        }
+
+        private string MontarCaminhoRemoto(FileInfo arquivo)
+        {
+            string raizLocal = NormalizarCaminhoLocal(this.camLocal);
+            string diretorioArquivo = arquivo.DirectoryName ?? "";
+            string diretorioNormalizado = NormalizarCaminhoLocal(diretorioArquivo);
+            string relativo = "";
+
+            if (!string.IsNullOrEmpty(raizLocal) &&
+                diretorioNormalizado.StartsWith(raizLocal, StringComparison.OrdinalIgnoreCase))
+            {
+                relativo = diretorioNormalizado.Substring(raizLocal.Length).TrimStart('\\');
+            }
+
+            string baseRemota = this.PastaBaseFTP ?? "";
+            if (Path.IsPathRooted(baseRemota))
+                baseRemota = "";
+
+            baseRemota = baseRemota.Replace("\\", "/").Trim('/');
+            relativo = relativo.Replace("\\", "/").Trim('/');
+
+            if (baseRemota.Length > 0 && relativo.Length > 0)
+                return "/" + baseRemota + "/" + relativo;
+
+            if (baseRemota.Length > 0)
+                return "/" + baseRemota;
+
+            if (relativo.Length > 0)
+                return "/" + relativo;
+
+            return "/";
+        }
 
         private void btConfig_Click(object sender, EventArgs e)
         {
@@ -106,20 +155,53 @@ namespace FTPc
 
         private void UltAtualizado(String Pasta)
         {
+            UltDt = DateTime.MinValue;
+            ArqEsc = null;
+            PastasVisitadas = 0;
+            ArquivosElegiveisEncontrados = 0;
+            ArquivosAnalisados = 0;
             DirectoryInfo dirInfo = new DirectoryInfo(Pasta);
+            string msgInicio = "[" + LogVersao + "][UltAtualizado] Inicio da busca em: " + Pasta;
+            Log(msgInicio);
             BuscaArquivos(dirInfo);
+            string msgResumo = "[" + LogVersao + "][UltAtualizado] Resumo: PastasVisitadas=" + PastasVisitadas + " | ArquivosElegiveis=" + ArquivosElegiveisEncontrados + " | ArquivosAnalisados=" + ArquivosAnalisados;
+            Log(msgResumo);
+            if (ArqEsc != null)
+            {
+                string msgEscolhido = "[" + LogVersao + "][UltAtualizado] Arquivo escolhido: " + ArqEsc.FullName + " | LastWriteTime=" + ArqEsc.LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss");
+                Log(msgEscolhido);
+            }
+            else
+            {
+                string msgVazio = "[" + LogVersao + "][UltAtualizado] Nenhum arquivo elegivel encontrado.";
+                Log(msgVazio);
+            }
         }
 
         private void BuscaArquivos(DirectoryInfo diret)
         {
             DirectoryInfo objDirectoryInfo = new System.IO.DirectoryInfo(diret.FullName);
+            string msgRaiz = "[" + LogVersao + "][BuscaArquivos] Pasta raiz: " + objDirectoryInfo.FullName;
+            Log(msgRaiz);
             SearchFiles(objDirectoryInfo);
             SearchDirectories(objDirectoryInfo);
         }
 
         private void SearchDirectories(DirectoryInfo objDirectoryInfo)
         {
-            foreach (DirectoryInfo DirectorioInfo in objDirectoryInfo.GetDirectories())
+            PastasVisitadas++;
+            DirectoryInfo[] diretorios;
+            try
+            {
+                diretorios = objDirectoryInfo.GetDirectories();
+            }
+            catch (Exception ex)
+            {
+                Log("[" + LogVersao + "][SearchDirectories] Erro ao listar subpastas de " + objDirectoryInfo.FullName + ": " + ex.Message);
+                return;
+            }
+
+            foreach (DirectoryInfo DirectorioInfo in diretorios)
             {
                 if ((DirectorioInfo.Exists == true) && (DirectorioInfo.Name != "System Volume Information") && (DirectorioInfo.Name != "RECYCLER"))
                 {
@@ -132,17 +214,37 @@ namespace FTPc
         private void SearchFiles(DirectoryInfo info)
         {
             List<string> extensoesPermitidas = new List<string> { ".php", ".js", ".css" , ".html", ".apk" , ".jpg"};
-            FileInfo[] arquivos = info.GetFiles()
+            FileInfo[] todosArquivos;
+            try
+            {
+                todosArquivos = info.GetFiles();
+            }
+            catch (Exception ex)
+            {
+                //Log("[" + LogVersao + "][SearchFiles] Erro ao listar arquivos de " + info.FullName + ": " + ex.Message);
+                return;
+            }
+
+            FileInfo[] arquivos = todosArquivos
                 .Where(arquivo => extensoesPermitidas.Contains(arquivo.Extension.ToLower()))
-                .OrderByDescending(arquivo => arquivo.CreationTime)
+                .OrderByDescending(arquivo => arquivo.LastWriteTime)
                 .ToArray();
+
+            ArquivosElegiveisEncontrados += arquivos.Length;
+            if (arquivos.Length > 0)
+            {
+                //Log("[" + LogVersao + "][SearchFiles] " + info.FullName + " | Total arquivos=" + todosArquivos.Length + " | Elegiveis=" + arquivos.Length + " | Mais recente na pasta=" + arquivos[0].Name + " | LastWriteTime=" + arquivos[0].LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss"));
+            }
+
             foreach (FileInfo arquivo in arquivos)
             {
+                ArquivosAnalisados++;
                 DateTime EssaData = arquivo.LastWriteTime;
                 if (EssaData > UltDt)
                 {
                     UltDt = EssaData;
                     ArqEsc = arquivo;
+                    //Log("[" + LogVersao + "][SearchFiles] Novo escolhido: " + arquivo.FullName + " | LastWriteTime=" + arquivo.LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss"));
                 }
             }
         }
@@ -153,6 +255,12 @@ namespace FTPc
         private bool Atualiza(bool forcado = false)
         {
             UltAtualizado(this.camLocal);
+            Log("[" + LogVersao + "][Atualiza] Resultado apos busca: " + (ArqEsc != null ? ArqEsc.FullName : "<null>"));
+            if (ArqEsc == null)
+            {
+                Log("[" + LogVersao + "][Atualiza] Nenhum arquivo encontrado para upload.");
+                return false;
+            }
             this.Text = "Ftpeia : " + ArqEsc.Name;
             Label1.Text = ArqEsc.FullName;
             Console.WriteLine(ArqEsc.FullName);
@@ -162,13 +270,8 @@ namespace FTPc
             {
                 this.UltNome = ese;
                 this.UltData = DtGrv;
-                int pos = ArqEsc.FullName.IndexOf(this.PastaBaseFTP.Replace("/", "\\"));
-                string CamfTP = ArqEsc.FullName.Substring(pos);
-                string NmArq = ArqEsc.Name;
-                if (CamfTP.EndsWith(NmArq))
-                {
-                    CamfTP = CamfTP.Remove(CamfTP.Length - NmArq.Length);
-                }
+                string CamfTP = MontarCaminhoRemoto(ArqEsc);
+                Log("[" + LogVersao + "][Atualiza] Caminho remoto calculado: " + CamfTP);
                 if (this.cFPT.Upload(ese, CamfTP))
                 {
                     lbErro.Visible = false;

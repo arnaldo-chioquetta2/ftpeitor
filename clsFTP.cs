@@ -31,7 +31,7 @@ namespace FTPc
                 _tamanhoConteudo = value;
                 Tot += value;
                 this.ProgressBar1.Value = Tot;
-                Console.WriteLine("ProgressBar1.Value = " + Tot.ToString());                
+                //Console.WriteLine("ProgressBar1.Value = " + Tot.ToString());                
             }
         }
 
@@ -42,15 +42,44 @@ namespace FTPc
 
         public void Credeciais(string ftpIPServidor, string ftpUsuarioID, string ftpSenha, int porta = 21)
         {
-            this.ftpIPServidor = ftpIPServidor;
+            this.ftpIPServidor = ftpIPServidor ?? "";
             this.ftpUsuarioID = ftpUsuarioID;
             this.ftpSenha = ftpSenha;
             this.Porta = porta;
         }
 
+        private Uri CriarUriFtp(string caminhoRemoto)
+        {
+            string servidor = (this.ftpIPServidor ?? "").Trim();
+            if (servidor.Length == 0)
+                throw new InvalidOperationException("Servidor FTP não configurado.");
+
+            if (!servidor.Contains("://"))
+                servidor = "ftp://" + servidor;
+
+            Uri baseUri = new Uri(servidor);
+            UriBuilder builder = new UriBuilder(baseUri);
+
+            if (builder.Scheme.Length == 0)
+                builder.Scheme = Uri.UriSchemeFtp;
+
+            if (builder.Port <= 0)
+                builder.Port = this.Porta;
+
+            string caminho = (caminhoRemoto ?? "").Replace("\\", "/").Trim();
+            if (caminho.Length == 0)
+                caminho = "/";
+            if (!caminho.StartsWith("/"))
+                caminho = "/" + caminho;
+
+            builder.Path = caminho;
+            return builder.Uri;
+        }
+
         public bool Upload(string _nomeArquivo, string Caminho)
         {
             this.Tot = 0;
+            this.Erro = "";
 
             string Cam = Caminho.Replace(@"\", @"/").Trim('/');
             FileInfo _arquivoInfo = new FileInfo(_nomeArquivo);
@@ -62,13 +91,15 @@ namespace FTPc
                 return false;
             }
 
-            string Suri = "ftp://" + this.ftpIPServidor + ":" + this.Porta + "/" + Cam + "/" + _arquivoInfo.Name;
+            Uri uriUpload = CriarUriFtp(Cam + "/" + _arquivoInfo.Name);
+            RemoverArquivoSeExistir(Cam + "/" + _arquivoInfo.Name);
 
             FtpWebRequest requisicaoFTP;
-            requisicaoFTP = (FtpWebRequest)FtpWebRequest.Create(new Uri(Suri));
+            requisicaoFTP = (FtpWebRequest)FtpWebRequest.Create(uriUpload);
             requisicaoFTP.Credentials = new NetworkCredential(this.ftpUsuarioID, this.ftpSenha);
             requisicaoFTP.KeepAlive = false;
             requisicaoFTP.Method = WebRequestMethods.Ftp.UploadFile;
+            requisicaoFTP.UsePassive = true;
             requisicaoFTP.UseBinary = true;
             requisicaoFTP.ContentLength = _arquivoInfo.Length;
             this.ProgressBar1.Visible = true;
@@ -89,15 +120,11 @@ namespace FTPc
                 {
                     if (ret.IndexOf("553") > 0)
                     {
-
-                        string sUrlD = "ftp://" + this.ftpIPServidor + ":" + this.Porta + Cam;
-                        // string sUrlD = "ftp://" + this.ftpIPServidor + Cam;
-
-                        FtpWebRequest requestCD = (FtpWebRequest)FtpWebRequest.Create(new Uri(sUrlD));
+                        FtpWebRequest requestCD = (FtpWebRequest)FtpWebRequest.Create(CriarUriFtp(Cam));
                         requestCD.Credentials = new NetworkCredential(this.ftpUsuarioID, this.ftpSenha);
                         requestCD.KeepAlive = false;
                         requestCD.Method = WebRequestMethods.Ftp.MakeDirectory;
-                        requestCD.Credentials = new NetworkCredential("user", "pass");
+                        requestCD.UsePassive = true;
                         try
                         {
                             using (var resp = (FtpWebResponse)requestCD.GetResponse())
@@ -107,6 +134,7 @@ namespace FTPc
                         }
                         catch (Exception ex)
                         {
+                            this.Erro = ex.Message;
                             MessageBox.Show("Não foi possivel enviar arquivo", "É necessário criar o diretório");
                             bReturn = false;
                             sair = true;
@@ -114,6 +142,7 @@ namespace FTPc
                     }
                     else
                     {
+                        this.Erro = ret;
                         MessageBox.Show(ret, "Erro não tratado");
                         bReturn = false;
                         sair = true;
@@ -121,6 +150,27 @@ namespace FTPc
                 } 
             }
             return bReturn;
+        }
+
+        private void RemoverArquivoSeExistir(string caminhoArquivo)
+        {
+            try
+            {
+                FtpWebRequest req = (FtpWebRequest)WebRequest.Create(CriarUriFtp(caminhoArquivo));
+                req.Credentials = new NetworkCredential(this.ftpUsuarioID, this.ftpSenha);
+                req.Method = WebRequestMethods.Ftp.DeleteFile;
+                req.KeepAlive = false;
+                req.UsePassive = true;
+                using (var resp = (FtpWebResponse)req.GetResponse())
+                {
+                }
+            }
+            catch (WebException ex)
+            {
+                var response = ex.Response as FtpWebResponse;
+                if (response == null || response.StatusCode != FtpStatusCode.ActionNotTakenFileUnavailable)
+                    this.Erro = ex.Message;
+            }
         }
 
         private bool CriarDiretorioRecursivo(string caminhoRemoto)
@@ -165,11 +215,7 @@ namespace FTPc
             try
             {
                 // Monta URL do diretório PAI para listar seu conteúdo
-                string urlPai = $"ftp://{this.ftpIPServidor}:{this.Porta}";
-                if (!string.IsNullOrEmpty(caminhoPai))
-                    urlPai += caminhoPai;
-
-                FtpWebRequest req = (FtpWebRequest)WebRequest.Create(urlPai);
+                FtpWebRequest req = (FtpWebRequest)WebRequest.Create(CriarUriFtp(caminhoPai));
                 req.Credentials = new NetworkCredential(this.ftpUsuarioID, this.ftpSenha);
                 req.Method = WebRequestMethods.Ftp.ListDirectory; // LIST command
                 req.KeepAlive = false;
@@ -212,7 +258,7 @@ namespace FTPc
         {
             try
             {
-                FtpWebRequest req = (FtpWebRequest)WebRequest.Create($"ftp://{this.ftpIPServidor}:{this.Porta}{caminhoCompleto}");
+                FtpWebRequest req = (FtpWebRequest)WebRequest.Create(CriarUriFtp(caminhoCompleto));
                 req.Credentials = new NetworkCredential(this.ftpUsuarioID, this.ftpSenha);
                 req.Method = WebRequestMethods.Ftp.MakeDirectory;
                 req.KeepAlive = false;
@@ -263,7 +309,19 @@ namespace FTPc
                 // Fecha o stream a requisição
                 strm.Close();
                 fs.Close();
+                using (var response = (FtpWebResponse)requisicaoFTP.GetResponse())
+                {
+                    this.Erro = response.StatusDescription;
+                }
                 return "";
+            }
+            catch (WebException ex)
+            {
+                var response = ex.Response as FtpWebResponse;
+                if (response != null)
+                    return response.StatusDescription;
+
+                return ex.Message;
             }
             catch (Exception ex)
             {
@@ -274,12 +332,13 @@ namespace FTPc
         public bool Testa()
         {
             string StringTeste = "Teste do FtpTeitor";
-            string Suri = "ftp://" + this.ftpIPServidor + ":" + this.Porta + @"/Teste.tst";
+            Uri uriTeste = CriarUriFtp("/Teste.tst");
             FtpWebRequest requisicaoFTP;
-            requisicaoFTP = (FtpWebRequest)FtpWebRequest.Create(new Uri(Suri));
+            requisicaoFTP = (FtpWebRequest)FtpWebRequest.Create(uriTeste);
             requisicaoFTP.Credentials = new NetworkCredential(this.ftpUsuarioID, this.ftpSenha);            
             requisicaoFTP.KeepAlive = false;
             requisicaoFTP.Method = WebRequestMethods.Ftp.UploadFile;
+            requisicaoFTP.UsePassive = true;
             requisicaoFTP.UseBinary = true;
             requisicaoFTP.ContentLength = 9;
             //int buffLength = 2048;
@@ -289,9 +348,13 @@ namespace FTPc
             {
                 Stream strm = requisicaoFTP.GetRequestStream();
                 strm.Write(buff, 0, StringTeste.Length);                
-                FtpWebRequest redDown = (FtpWebRequest)WebRequest.Create(Suri);
+                using (var respUp = (FtpWebResponse)requisicaoFTP.GetResponse())
+                {
+                }
+                FtpWebRequest redDown = (FtpWebRequest)WebRequest.Create(uriTeste);
                 redDown.Method = WebRequestMethods.Ftp.DownloadFile;
                 redDown.Credentials = new NetworkCredential(this.ftpUsuarioID, this.ftpSenha);
+                redDown.UsePassive = true;
                 FtpWebResponse respDown = (FtpWebResponse)redDown.GetResponse();
                 Stream responseStream = respDown.GetResponseStream();
                 StreamReader readerD = new StreamReader(responseStream);
@@ -308,9 +371,10 @@ namespace FTPc
             if (ret)
             {
                 // Deleção do arquivo de testes, se der erro na deleção ainda assim a conexão é valida, porque será utilizado para upload
-                FtpWebRequest redDel = (FtpWebRequest)WebRequest.Create(Suri);
+                FtpWebRequest redDel = (FtpWebRequest)WebRequest.Create(uriTeste);
                 redDel.Method = WebRequestMethods.Ftp.DeleteFile;
                 redDel.Credentials = new NetworkCredential(this.ftpUsuarioID, this.ftpSenha);
+                redDel.UsePassive = true;
                 FtpWebResponse response = (FtpWebResponse)redDel.GetResponse();
                 response.Close();
             }

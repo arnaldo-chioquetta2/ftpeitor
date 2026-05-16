@@ -16,6 +16,8 @@ namespace FTPc
         {
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
+            ExecutionLog.Initialize();
+            ExecutionLog.Write("[Program] Aplicacao iniciada.");
             Application.Run(new Tela());
         }
     }

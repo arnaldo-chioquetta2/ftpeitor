@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Windows.Forms;
 
 namespace FTPc
@@ -31,6 +32,8 @@ namespace FTPc
             this.MeuIni.WriteString(iftpAtu.ToString(), "CamLocal", txLocal.Text);
             this.MeuIni.WriteString(iftpAtu.ToString(), "PastaBaseFTP", txCamFTP.Text);
             this.MeuIni.WriteString(iftpAtu.ToString(), "Porta", txPorta.Text);
+            this.MeuIni.WriteBool("Config", "LogAtivo", chkLog.Checked);
+            ExecutionLog.SetEnabled(chkLog.Checked);
             Close();
         }
 
@@ -71,6 +74,7 @@ namespace FTPc
                 txCamFTP.Text = this.MeuIni.ReadString(ftpAtu, "PastaBaseFTP", "");
                 txPorta.Text = this.MeuIni.ReadString(ftpAtu, "Porta", "21");
             }
+            chkLog.Checked = this.MeuIni.ReadBool("Config", "LogAtivo", false);
             carregando = false; ;
         }
 
@@ -103,6 +107,19 @@ namespace FTPc
             else
                 MessageBox.Show("Impossível conectar", "Erro na configuração");
             btTeste.Enabled = true;
+        }
+
+        private void btLog_Click(object sender, EventArgs e)
+        {
+            string logPath = ExecutionLog.CurrentLogPath;
+            if (string.IsNullOrEmpty(logPath) || !File.Exists(logPath))
+            {
+                MessageBox.Show("Nenhum log da execucao atual foi encontrado.", "Log indisponivel");
+                return;
+            }
+
+            if (!ExecutionLog.OpenCurrentLog())
+                MessageBox.Show("Nao foi possivel abrir o log atual.", "Erro ao abrir log");
         }
 
     }
