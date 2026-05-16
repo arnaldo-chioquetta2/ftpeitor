@@ -388,5 +388,9 @@ namespace FTPc
         }
         #endregion
 
+        private void btDownload_Click(object sender, EventArgs e)
+        {
+
+        }
     }
 }

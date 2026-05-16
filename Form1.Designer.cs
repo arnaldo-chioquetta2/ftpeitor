@@ -1,4 +1,4 @@
-﻿namespace FTPc
+namespace FTPc
 {
     partial class Tela
     {
@@ -37,6 +37,7 @@
             this.btInicio = new System.Windows.Forms.Button();
             this.btConfig = new System.Windows.Forms.Button();
             this.pictureBox1 = new System.Windows.Forms.PictureBox();
+            this.btDownload = new System.Windows.Forms.Button();
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox1)).BeginInit();
             this.SuspendLayout();
             // 
@@ -100,11 +101,22 @@
             this.pictureBox1.TabStop = false;
             this.pictureBox1.Visible = false;
             // 
+            // btDownload
+            // 
+            this.btDownload.Location = new System.Drawing.Point(356, 26);
+            this.btDownload.Name = "btDownload";
+            this.btDownload.Size = new System.Drawing.Size(112, 23);
+            this.btDownload.TabIndex = 6;
+            this.btDownload.Text = "Download Arquivos";
+            this.btDownload.UseVisualStyleBackColor = true;
+            this.btDownload.Click += new System.EventHandler(this.btDownload_Click);
+            // 
             // Tela
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(429, 76);
+            this.ClientSize = new System.Drawing.Size(478, 76);
+            this.Controls.Add(this.btDownload);
             this.Controls.Add(this.pictureBox1);
             this.Controls.Add(this.btConfig);
             this.Controls.Add(this.btInicio);
@@ -135,6 +147,7 @@
         private System.Windows.Forms.Button btInicio;
         private System.Windows.Forms.Button btConfig;
         private System.Windows.Forms.PictureBox pictureBox1;
+        private System.Windows.Forms.Button btDownload;
     }
 }
 
