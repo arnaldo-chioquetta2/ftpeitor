@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Data;
 using System.IO;
 using System.Linq;
+using System.Text;
+
 using System.Windows.Forms;
 
 namespace FTPc
@@ -308,6 +310,7 @@ namespace FTPc
 
                     int ok = 0;
                     int erros = 0;
+                    var errosAcumulados = new StringBuilder();
 
                     lbErro.Visible = false;
                     Label1.Text = "Iniciando downloads...";
@@ -327,7 +330,9 @@ namespace FTPc
                         catch (Exception ex)
                         {
                             erros++;
-                            ExecutionLog.Write("Download ignorado (path invalido): '" + remoto + "' - " + ex.Message);
+                            string msg = "Download ignorado (path invalido): '" + remoto + "' - " + ex.Message;
+                            ExecutionLog.Write(msg);
+                            errosAcumulados.AppendLine(msg);
                             continue;
                         }
 
@@ -344,7 +349,9 @@ namespace FTPc
                         {
                             erros++;
                             string erroFtp = (this.cFPT != null) ? this.cFPT.getErro() : "";
-                            ExecutionLog.Write("Download ERRO: '" + remoto + "' -> '" + destinoLocal + "' - " + ex.Message + (string.IsNullOrWhiteSpace(erroFtp) ? "" : (" | FTP: " + erroFtp)));
+                            string msg = "Download ERRO: '" + remoto + "' -> '" + destinoLocal + "' - " + ex.Message + (string.IsNullOrWhiteSpace(erroFtp) ? "" : (" | FTP: " + erroFtp));
+                            ExecutionLog.Write(msg);
+                            errosAcumulados.AppendLine(msg);
                         }
                     }
 
@@ -355,6 +362,10 @@ namespace FTPc
                     {
                         lbErro.Text = "Concluido com " + erros + " erro(s).";
                         lbErro.Visible = true;
+
+                        string texto = errosAcumulados.ToString().Trim();
+                        if (!string.IsNullOrWhiteSpace(texto))
+                            ShowErrorMessageOnUiThread(texto, "Erros no Download");
                     }
                     else
                     {
@@ -445,6 +456,7 @@ namespace FTPc
 
             int ok = 0;
             int erro = 0;
+            var errosAcumulados = new StringBuilder();
 
             lbErro.Visible = false;
             Label1.Text = "Iniciando download...";
@@ -463,7 +475,9 @@ namespace FTPc
                     if (!TryMapRemoteToLocal(raiz, remoto, out local, out motivo))
                     {
                         erro++;
-                        ExecutionLog.Write("[Download] Ignorado (path invalido). Remoto='" + (remoto ?? "") + "' Motivo='" + motivo + "'.");
+                        string msg = "[Download] Ignorado (path invalido). Remoto='" + (remoto ?? "") + "' Motivo='" + motivo + "'.";
+                        ExecutionLog.Write(msg);
+                        errosAcumulados.AppendLine(msg);
                         continue;
                     }
 
@@ -478,7 +492,9 @@ namespace FTPc
                 {
                     erro++;
                     string ftpErro = (this.cFPT != null) ? this.cFPT.getErro() : "";
-                    ExecutionLog.Write("[Download] ERRO. Remoto='" + (remoto ?? "") + "' FTP='" + (ftpErro ?? "") + "' Ex='" + ex.Message + "'.");
+                    string msg = "[Download] ERRO. Remoto='" + (remoto ?? "") + "' FTP='" + (ftpErro ?? "") + "' Ex='" + ex.Message + "'.";
+                    ExecutionLog.Write(msg);
+                    errosAcumulados.AppendLine(msg);
                 }
             }
 
@@ -490,6 +506,10 @@ namespace FTPc
             {
                 lbErro.Text = resumo;
                 lbErro.Visible = true;
+
+                string texto = errosAcumulados.ToString().Trim();
+                if (!string.IsNullOrWhiteSpace(texto))
+                    ShowErrorMessageOnUiThread(texto, "Erros no Download");
             }
 
             ExecutionLog.Write("[Download] Fim. " + resumo);
@@ -590,6 +610,23 @@ namespace FTPc
 
             string b = basePath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
             return candidatePath.StartsWith(b, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private void ShowErrorMessageOnUiThread(string message, string title)
+        {
+            if (this.IsDisposed)
+                return;
+
+            Action show = () =>
+            {
+                if (!this.IsDisposed)
+                    MessageBox.Show(this, message, title, MessageBoxButtons.OK, MessageBoxIcon.Error);
+            };
+
+            if (this.InvokeRequired)
+                this.BeginInvoke(show);
+            else
+                show();
         }
         #endregion
 
