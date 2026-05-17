@@ -40,6 +40,79 @@ namespace FTPc
 
         }
 
+        // Regra de mensagem amigável:
+        // - Se erro FTP for 550 (arquivo/diretorio inexistente/indisponivel), mostrar ao usuario:
+        //   "Arquivo inexistente 'CAMINHO_LOCAL'"
+        // - Detalhe tecnico (ex.ToString(), StatusDescription etc.) fica apenas no log.
+        // Exemplos:
+        //   Entrada: WebException "(550) ..." + localPath="D:\\...\\onboarding.blade.php" -> Saida UI: "Arquivo inexistente 'D:\\...\\onboarding.blade.php'"
+        //   Entrada: outros (530/553/timeout) -> Saida UI: fallback "<operacao> ERRO: ..."
+        public static string BuildUserFriendlyFtpError(Exception ex, string localPath, string remotePath, string operation)
+        {
+            string op = string.IsNullOrWhiteSpace(operation) ? "FTP" : operation.Trim();
+
+            if (IsFtp550FileUnavailable(ex))
+            {
+                string lp = string.IsNullOrWhiteSpace(localPath) ? "" : localPath;
+                return "Arquivo inexistente '" + lp + "'";
+            }
+
+            // Fallback: manter mensagem simples (detalhe tecnico deve ir para log fora daqui)
+            string rp = string.IsNullOrWhiteSpace(remotePath) ? "" : remotePath;
+            string lp2 = string.IsNullOrWhiteSpace(localPath) ? "" : localPath;
+            string exMsg = (ex != null && !string.IsNullOrWhiteSpace(ex.Message)) ? ex.Message : "Erro desconhecido.";
+
+            if (rp.Length > 0 || lp2.Length > 0)
+                return op + " ERRO: '" + rp + "' -> '" + lp2 + "' - " + exMsg;
+
+            return op + " ERRO: " + exMsg;
+        }
+
+        private static bool IsFtp550FileUnavailable(Exception ex)
+        {
+            if (ex == null)
+                return false;
+
+            // Preferencia: StatusCode do FtpWebResponse
+            FtpStatusCode? code;
+            string statusDescription;
+            TryGetFtpStatus(ex, out code, out statusDescription);
+
+            if (code.HasValue && code.Value == FtpStatusCode.ActionNotTakenFileUnavailable)
+                return true;
+
+            // Fallback por texto (servidores variam muito)
+            string text = ((ex.Message ?? "") + " " + (statusDescription ?? "")).ToLowerInvariant();
+            if (text.Contains("(550)") || text.Contains(" 550") || text.Contains("550 ") || text.Contains("can't open") || text.Contains("no such file") || text.Contains("no such directory") || text.Contains("not found") || text.Contains("arquivo não disponível") || text.Contains("arquivo nao disponivel"))
+                return true;
+
+            // Alguns casos vem encapsulado como InnerException
+            if (ex.InnerException != null)
+                return IsFtp550FileUnavailable(ex.InnerException);
+
+            return false;
+        }
+
+        private static bool TryGetFtpStatus(Exception ex, out FtpStatusCode? statusCode, out string statusDescription)
+        {
+            statusCode = null;
+            statusDescription = null;
+
+            WebException wex = ex as WebException;
+            if (wex != null)
+            {
+                var ftpResp = wex.Response as FtpWebResponse;
+                if (ftpResp != null)
+                {
+                    statusCode = ftpResp.StatusCode;
+                    statusDescription = ftpResp.StatusDescription;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         public void Credeciais(string ftpIPServidor, string ftpUsuarioID, string ftpSenha, int porta = 21)
         {
             this.ftpIPServidor = ftpIPServidor ?? "";

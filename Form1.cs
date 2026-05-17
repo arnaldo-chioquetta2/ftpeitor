@@ -348,10 +348,16 @@ namespace FTPc
                         catch (Exception ex)
                         {
                             erros++;
+
                             string erroFtp = (this.cFPT != null) ? this.cFPT.getErro() : "";
-                            string msg = "Download ERRO: '" + remoto + "' -> '" + destinoLocal + "' - " + ex.Message + (string.IsNullOrWhiteSpace(erroFtp) ? "" : (" | FTP: " + erroFtp));
-                            ExecutionLog.Write(msg);
-                            errosAcumulados.AppendLine(msg);
+
+                            // Log tecnico completo (mantem diagnostico e stacktrace)
+                            string msgTecnica = "Download ERRO: '" + remoto + "' -> '" + destinoLocal + "' - " + (ex != null ? ex.ToString() : "(ex null)") + (string.IsNullOrWhiteSpace(erroFtp) ? "" : (" | FTP: " + erroFtp));
+                            ExecutionLog.Write(msgTecnica);
+
+                            // UI amigavel (550 => arquivo inexistente)
+                            string msgUsuario = FTP.BuildUserFriendlyFtpError(ex, destinoLocal, remoto, "Download");
+                            errosAcumulados.AppendLine(msgUsuario);
                         }
                     }
 
