@@ -38,7 +38,6 @@ namespace FTPc
             btnBaixar.DialogResult = DialogResult.OK;
             btnBaixar.Anchor = (AnchorStyles.Bottom | AnchorStyles.Right);
             btnBaixar.Location = new System.Drawing.Point(this.Width - 200, 8);
-            btnBaixar.Click += btnBaixar_Click; // Adicionar manipulador de eventos
             pnlButtons.Controls.Add(btnBaixar);
 
             // Botão Cancelar
@@ -76,26 +75,9 @@ namespace FTPc
         }
 
         // Manipulador de eventos para o botão Baixar
-
-        private async void btnBaixar_Click(object sender, EventArgs e)
+        // Nesta tela, apenas confirmamos a lista de links/caminhos.
+        private void btnBaixar_Click(object sender, EventArgs e)
         {
-            var downloadPaths = DownloadPaths;
-            foreach (var path in downloadPaths)
-            {
-                using (var httpClient = new System.Net.Http.HttpClient())
-                {
-                    var response = await httpClient.GetAsync(path);
-                    if (response.IsSuccessStatusCode)
-                    {
-                        var fileName = System.IO.Path.GetFileName(path);
-                        var filePath = System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), fileName);
-                        using (var fileStream = new System.IO.FileStream(filePath, System.IO.FileMode.Create))
-                        {
-                            await response.Content.CopyToAsync(fileStream);
-                        }
-                    }
-                }
-            }
             this.DialogResult = DialogResult.OK;
             this.Close();
         }

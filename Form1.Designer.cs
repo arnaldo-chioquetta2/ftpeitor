@@ -1,4 +1,4 @@
-namespace FTPc
+﻿namespace FTPc
 {
     partial class Tela
     {
@@ -73,7 +73,7 @@ namespace FTPc
             // 
             // btInicio
             // 
-            this.btInicio.Location = new System.Drawing.Point(92, 26);
+            this.btInicio.Location = new System.Drawing.Point(32, 26);
             this.btInicio.Name = "btInicio";
             this.btInicio.Size = new System.Drawing.Size(112, 23);
             this.btInicio.TabIndex = 3;
@@ -83,7 +83,7 @@ namespace FTPc
             // 
             // btConfig
             // 
-            this.btConfig.Location = new System.Drawing.Point(224, 26);
+            this.btConfig.Location = new System.Drawing.Point(163, 26);
             this.btConfig.Name = "btConfig";
             this.btConfig.Size = new System.Drawing.Size(112, 23);
             this.btConfig.TabIndex = 4;
@@ -103,11 +103,11 @@ namespace FTPc
             // 
             // btDownload
             // 
-            this.btDownload.Location = new System.Drawing.Point(356, 26);
+            this.btDownload.Location = new System.Drawing.Point(291, 26);
             this.btDownload.Name = "btDownload";
             this.btDownload.Size = new System.Drawing.Size(112, 23);
             this.btDownload.TabIndex = 6;
-            this.btDownload.Text = "Download Arquivos";
+            this.btDownload.Text = "Configurar";
             this.btDownload.UseVisualStyleBackColor = true;
             this.btDownload.Click += new System.EventHandler(this.btDownload_Click);
             // 
@@ -115,7 +115,7 @@ namespace FTPc
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(478, 76);
+            this.ClientSize = new System.Drawing.Size(429, 76);
             this.Controls.Add(this.btDownload);
             this.Controls.Add(this.pictureBox1);
             this.Controls.Add(this.btConfig);

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -389,6 +389,53 @@ namespace FTPc
         {
             this.ProgressBar1 = ProgressBar1;
             Console.WriteLine("this.ProgressBar1 = ProgressBar1");
+        }
+
+        public async Task DownloadFileAsync(string caminhoRemoto, string caminhoLocal)
+        {
+            if (string.IsNullOrWhiteSpace(caminhoRemoto))
+                throw new ArgumentException("Caminho remoto nao informado.", nameof(caminhoRemoto));
+            if (string.IsNullOrWhiteSpace(caminhoLocal))
+                throw new ArgumentException("Caminho local nao informado.", nameof(caminhoLocal));
+
+            this.Erro = "";
+
+            string dirLocal = Path.GetDirectoryName(caminhoLocal);
+            if (!string.IsNullOrEmpty(dirLocal))
+                Directory.CreateDirectory(dirLocal);
+
+            FtpWebRequest req = (FtpWebRequest)WebRequest.Create(CriarUriFtp(caminhoRemoto));
+            req.Credentials = new NetworkCredential(this.ftpUsuarioID, this.ftpSenha);
+            req.Method = WebRequestMethods.Ftp.DownloadFile;
+            req.KeepAlive = false;
+            req.UsePassive = true;
+            req.UseBinary = true;
+
+            try
+            {
+                using (var resp = (FtpWebResponse)await req.GetResponseAsync().ConfigureAwait(false))
+                using (var responseStream = resp.GetResponseStream())
+                using (var fs = new FileStream(caminhoLocal, FileMode.Create, FileAccess.Write, FileShare.None))
+                {
+                    if (responseStream != null)
+                        await responseStream.CopyToAsync(fs).ConfigureAwait(false);
+                }
+            }
+            catch (WebException ex)
+            {
+                var response = ex.Response as FtpWebResponse;
+                if (response != null)
+                    this.Erro = response.StatusDescription;
+                else
+                    this.Erro = ex.Message;
+
+                throw;
+            }
+            catch (Exception ex)
+            {
+                this.Erro = ex.Message;
+                throw;
+            }
         }
 
     }
