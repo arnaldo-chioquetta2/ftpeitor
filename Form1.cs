@@ -273,13 +273,142 @@ namespace FTPc
             this.ClicouInicio();
         }
 
-        private void btDownload_Click(object sender, EventArgs e)
+        private async void btDownload_Click(object sender, EventArgs e)
         {
             timer1.Enabled = false;
+
             using (DownloadListForm downloadListForm = new DownloadListForm())
             {
-                downloadListForm.ShowDialog(this);
+                var result = downloadListForm.ShowDialog(this);
+                if (result != DialogResult.OK)
+                    return;
+
+                try
+                {
+                    // Garante que credenciais/camLocal estejam atualizados
+                    if (this.cFPT == null)
+                        this.cFPT = new FTP();
+
+                    Credenciais();
+
+                    if (string.IsNullOrWhiteSpace(this.camLocal))
+                    {
+                        lbErro.Text = "Caminho Local (CamLocal) nao configurado.";
+                        lbErro.Visible = true;
+                        ExecutionLog.Write("Download abortado: CamLocal nao configurado.");
+                        return;
+                    }
+
+                    var paths = downloadListForm.DownloadPaths;
+                    if (paths == null || paths.Count == 0)
+                    {
+                        ExecutionLog.Write("Download cancelado: lista vazia.");
+                        return;
+                    }
+
+                    int ok = 0;
+                    int erros = 0;
+
+                    lbErro.Visible = false;
+                    Label1.Text = "Iniciando downloads...";
+                    Label1.Refresh();
+
+                    foreach (string remotoOriginal in paths)
+                    {
+                        string remoto = (remotoOriginal ?? string.Empty).Trim();
+                        if (remoto.Length == 0)
+                            continue;
+
+                        string destinoLocal;
+                        try
+                        {
+                            destinoLocal = MapearCaminhoRemotoParaLocalSeguro(remoto, this.camLocal);
+                        }
+                        catch (Exception ex)
+                        {
+                            erros++;
+                            ExecutionLog.Write("Download ignorado (path invalido): '" + remoto + "' - " + ex.Message);
+                            continue;
+                        }
+
+                        try
+                        {
+                            Label1.Text = "Baixando: " + remoto;
+                            Label1.Refresh();
+
+                            await this.cFPT.DownloadFileAsync(remoto, destinoLocal);
+                            ok++;
+                            ExecutionLog.Write("Download OK: '" + remoto + "' -> '" + destinoLocal + "'");
+                        }
+                        catch (Exception ex)
+                        {
+                            erros++;
+                            string erroFtp = (this.cFPT != null) ? this.cFPT.getErro() : "";
+                            ExecutionLog.Write("Download ERRO: '" + remoto + "' -> '" + destinoLocal + "' - " + ex.Message + (string.IsNullOrWhiteSpace(erroFtp) ? "" : (" | FTP: " + erroFtp)));
+                        }
+                    }
+
+                    Label1.Text = "Downloads concluidos. OK: " + ok + " / Erros: " + erros;
+                    Label1.Refresh();
+
+                    if (erros > 0)
+                    {
+                        lbErro.Text = "Concluido com " + erros + " erro(s).";
+                        lbErro.Visible = true;
+                    }
+                    else
+                    {
+                        lbErro.Visible = false;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // Sem prompts intrusivos: registra e mostra erro resumido na tela
+                    ExecutionLog.Write("Falha geral no btDownload: " + ex.Message);
+                    lbErro.Text = "Falha no download.";
+                    lbErro.Visible = true;
+                }
             }
+        }
+
+        private static string MapearCaminhoRemotoParaLocalSeguro(string caminhoRemoto, string raizLocal)
+        {
+            if (string.IsNullOrWhiteSpace(raizLocal))
+                throw new ArgumentException("Raiz local nao informada.", nameof(raizLocal));
+
+            if (string.IsNullOrWhiteSpace(caminhoRemoto))
+                throw new ArgumentException("Caminho remoto nao informado.", nameof(caminhoRemoto));
+
+            string rel = caminhoRemoto.Trim();
+            rel = rel.Replace('\\', '/');
+
+            while (rel.StartsWith("./"))
+                rel = rel.Substring(2);
+
+            rel = rel.TrimStart('/');
+
+            if (rel.Length == 0)
+                throw new ArgumentException("Caminho remoto vazio apos normalizacao.");
+
+            // Bloqueios básicos contra escape
+            if (rel.Contains(".."))
+                throw new InvalidOperationException("Path traversal ('..') nao permitido.");
+            if (rel.Contains(":") || rel.StartsWith("//"))
+                throw new InvalidOperationException("Caminho remoto com ':' ou UNC nao permitido.");
+
+            rel = rel.Replace('/', Path.DirectorySeparatorChar);
+
+            string raizFull = Path.GetFullPath(raizLocal);
+            string destinoFull = Path.GetFullPath(Path.Combine(raizFull, rel));
+
+            // Garante que destino está dentro da raiz
+            if (!destinoFull.StartsWith(raizFull.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(destinoFull, raizFull, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("Destino fora da raiz local configurada.");
+            }
+
+            return destinoFull;
         }
 
         private void Tela_Resize_1(object sender, EventArgs e)
@@ -293,6 +422,174 @@ namespace FTPc
                 Label1.Refresh();
                 Atualiza();
             }
+        }
+
+        private async void ProcessarDownloadsAsync(System.Collections.Generic.List<string> remotePaths)
+        {
+            if (remotePaths == null || remotePaths.Count == 0)
+                return;
+
+            if (this.cFPT == null)
+            {
+                Inicializa();
+            }
+
+            if (string.IsNullOrWhiteSpace(this.camLocal))
+            {
+                // Sem prompts intrusivos por arquivo; aqui e um bloqueio de configuracao.
+                lbErro.Text = "Caminho Local (raiz) nao configurado.";
+                lbErro.Visible = true;
+                ExecutionLog.Write("[Download] Abortado: CamLocal (raiz local) nao configurado.");
+                return;
+            }
+
+            int ok = 0;
+            int erro = 0;
+
+            lbErro.Visible = false;
+            Label1.Text = "Iniciando download...";
+            Label1.Refresh();
+
+            string raiz = this.camLocal;
+            ExecutionLog.Write("[Download] Inicio. Itens=" + remotePaths.Count + " RaizLocal='" + raiz + "'.");
+
+            foreach (var raw in remotePaths)
+            {
+                string remoto = raw;
+                try
+                {
+                    string local;
+                    string motivo;
+                    if (!TryMapRemoteToLocal(raiz, remoto, out local, out motivo))
+                    {
+                        erro++;
+                        ExecutionLog.Write("[Download] Ignorado (path invalido). Remoto='" + (remoto ?? "") + "' Motivo='" + motivo + "'.");
+                        continue;
+                    }
+
+                    Label1.Text = "Baixando: " + remoto;
+                    Label1.Refresh();
+
+                    await this.cFPT.DownloadFileAsync(remoto, local);
+                    ok++;
+                    ExecutionLog.Write("[Download] OK. Remoto='" + remoto + "' Local='" + local + "'.");
+                }
+                catch (Exception ex)
+                {
+                    erro++;
+                    string ftpErro = (this.cFPT != null) ? this.cFPT.getErro() : "";
+                    ExecutionLog.Write("[Download] ERRO. Remoto='" + (remoto ?? "") + "' FTP='" + (ftpErro ?? "") + "' Ex='" + ex.Message + "'.");
+                }
+            }
+
+            string resumo = "Download concluido. OK=" + ok + " Erros=" + erro;
+            Label1.Text = resumo;
+            Label1.Refresh();
+
+            if (erro > 0)
+            {
+                lbErro.Text = resumo;
+                lbErro.Visible = true;
+            }
+
+            ExecutionLog.Write("[Download] Fim. " + resumo);
+        }
+
+        private bool TryMapRemoteToLocal(string raizLocal, string remotePath, out string localPath, out string reason)
+        {
+            localPath = null;
+            reason = null;
+
+            if (string.IsNullOrWhiteSpace(raizLocal))
+            {
+                reason = "raiz_local_vazia";
+                return false;
+            }
+
+            string raizFull;
+            try
+            {
+                raizFull = Path.GetFullPath(raizLocal);
+            }
+            catch
+            {
+                reason = "raiz_local_invalida";
+                return false;
+            }
+
+            string rel = NormalizeRemotePath(remotePath);
+            if (string.IsNullOrWhiteSpace(rel))
+            {
+                reason = "remote_vazio";
+                return false;
+            }
+
+            // Bloqueios basicos antes de combinar
+            if (rel.Contains(".."))
+            {
+                reason = "path_traversal";
+                return false;
+            }
+            if (rel.IndexOf(':') >= 0)
+            {
+                reason = "drive_letter";
+                return false;
+            }
+            if (rel.StartsWith("\\\\"))
+            {
+                reason = "unc";
+                return false;
+            }
+
+            // Converter / para \ para caminho do Windows
+            rel = rel.Replace('/', '\\');
+
+            string combined = Path.Combine(raizFull, rel);
+            string combinedFull;
+            try
+            {
+                combinedFull = Path.GetFullPath(combined);
+            }
+            catch
+            {
+                reason = "path_local_invalido";
+                return false;
+            }
+
+            if (!IsSubPathOf(combinedFull, raizFull))
+            {
+                reason = "fora_da_raiz";
+                return false;
+            }
+
+            localPath = combinedFull;
+            return true;
+        }
+
+        private string NormalizeRemotePath(string remotePath)
+        {
+            string p = (remotePath ?? "").Trim();
+            if (p.Length == 0)
+                return p;
+
+            p = p.Replace('\\', '/');
+
+            while (p.StartsWith("./"))
+                p = p.Substring(2);
+
+            if (p.StartsWith("/"))
+                p = p.Substring(1);
+
+            return p.Trim();
+        }
+
+        private bool IsSubPathOf(string candidatePath, string basePath)
+        {
+            if (string.IsNullOrEmpty(candidatePath) || string.IsNullOrEmpty(basePath))
+                return false;
+
+            string b = basePath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            return candidatePath.StartsWith(b, StringComparison.OrdinalIgnoreCase);
         }
         #endregion
 
