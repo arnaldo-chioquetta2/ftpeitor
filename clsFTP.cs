@@ -152,6 +152,58 @@ namespace FTPc
             return bReturn;
         }
 
+        public bool Download(string caminhoRemoto, string pastaLocalBase)
+        {
+            this.Erro = "";
+
+            try
+            {
+                string remoto = (caminhoRemoto ?? "").Replace("\\", "/").Trim();
+                if (remoto.Length == 0)
+                {
+                    this.Erro = "Caminho remoto vazio.";
+                    return false;
+                }
+
+                string relativo = remoto.TrimStart('/');
+                string local = Path.Combine(pastaLocalBase, relativo.Replace("/", "\\"));
+                string diretorioLocal = Path.GetDirectoryName(local);
+                if (!string.IsNullOrEmpty(diretorioLocal))
+                    Directory.CreateDirectory(diretorioLocal);
+
+                FtpWebRequest req = (FtpWebRequest)WebRequest.Create(CriarUriFtp(remoto));
+                req.Credentials = new NetworkCredential(this.ftpUsuarioID, this.ftpSenha);
+                req.Method = WebRequestMethods.Ftp.DownloadFile;
+                req.KeepAlive = false;
+                req.UsePassive = true;
+                req.UseBinary = true;
+
+                using (FtpWebResponse response = (FtpWebResponse)req.GetResponse())
+                using (Stream responseStream = response.GetResponseStream())
+                using (FileStream fileStream = new FileStream(local, FileMode.Create, FileAccess.Write))
+                {
+                    responseStream.CopyTo(fileStream);
+                }
+
+                return true;
+            }
+            catch (WebException ex)
+            {
+                var response = ex.Response as FtpWebResponse;
+                if (response != null)
+                    this.Erro = response.StatusDescription;
+                else
+                    this.Erro = ex.Message;
+
+                return false;
+            }
+            catch (Exception ex)
+            {
+                this.Erro = ex.Message;
+                return false;
+            }
+        }
+
         private void RemoverArquivoSeExistir(string caminhoArquivo)
         {
             try

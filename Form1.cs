@@ -374,10 +374,10 @@ namespace FTPc
                 }
                 catch (Exception ex)
                 {
-                    // Sem prompts intrusivos: registra e mostra erro resumido na tela
                     ExecutionLog.Write("Falha geral no btDownload: " + ex.Message);
                     lbErro.Text = "Falha no download.";
                     lbErro.Visible = true;
+                    ShowErrorMessageOnUiThread(ex.Message, "Erro no Download");
                 }
             }
         }
