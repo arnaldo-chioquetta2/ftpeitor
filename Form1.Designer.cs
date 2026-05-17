@@ -36,8 +36,8 @@
             this.lbErro = new System.Windows.Forms.Label();
             this.btInicio = new System.Windows.Forms.Button();
             this.btConfig = new System.Windows.Forms.Button();
-            this.pictureBox1 = new System.Windows.Forms.PictureBox();
             this.btDownload = new System.Windows.Forms.Button();
+            this.pictureBox1 = new System.Windows.Forms.PictureBox();
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox1)).BeginInit();
             this.SuspendLayout();
             // 
@@ -73,7 +73,7 @@
             // 
             // btInicio
             // 
-            this.btInicio.Location = new System.Drawing.Point(32, 26);
+            this.btInicio.Location = new System.Drawing.Point(12, 26);
             this.btInicio.Name = "btInicio";
             this.btInicio.Size = new System.Drawing.Size(112, 23);
             this.btInicio.TabIndex = 3;
@@ -83,13 +83,23 @@
             // 
             // btConfig
             // 
-            this.btConfig.Location = new System.Drawing.Point(163, 26);
+            this.btConfig.Location = new System.Drawing.Point(160, 26);
             this.btConfig.Name = "btConfig";
             this.btConfig.Size = new System.Drawing.Size(112, 23);
             this.btConfig.TabIndex = 4;
             this.btConfig.Text = "Configurar";
             this.btConfig.UseVisualStyleBackColor = true;
             this.btConfig.Click += new System.EventHandler(this.btConfig_Click);
+            // 
+            // btDownload
+            // 
+            this.btDownload.Location = new System.Drawing.Point(308, 26);
+            this.btDownload.Name = "btDownload";
+            this.btDownload.Size = new System.Drawing.Size(112, 23);
+            this.btDownload.TabIndex = 6;
+            this.btDownload.Text = "Download";
+            this.btDownload.UseVisualStyleBackColor = true;
+            this.btDownload.Click += new System.EventHandler(this.btDownload_Click);
             // 
             // pictureBox1
             // 
@@ -101,23 +111,13 @@
             this.pictureBox1.TabStop = false;
             this.pictureBox1.Visible = false;
             // 
-            // btDownload
-            // 
-            this.btDownload.Location = new System.Drawing.Point(291, 26);
-            this.btDownload.Name = "btDownload";
-            this.btDownload.Size = new System.Drawing.Size(112, 23);
-            this.btDownload.TabIndex = 6;
-            this.btDownload.Text = "Configurar";
-            this.btDownload.UseVisualStyleBackColor = true;
-            this.btDownload.Click += new System.EventHandler(this.btDownload_Click);
-            // 
             // Tela
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(429, 76);
-            this.Controls.Add(this.btDownload);
             this.Controls.Add(this.pictureBox1);
+            this.Controls.Add(this.btDownload);
             this.Controls.Add(this.btConfig);
             this.Controls.Add(this.btInicio);
             this.Controls.Add(this.lbErro);
@@ -146,8 +146,8 @@
         private System.Windows.Forms.Label lbErro;
         private System.Windows.Forms.Button btInicio;
         private System.Windows.Forms.Button btConfig;
-        private System.Windows.Forms.PictureBox pictureBox1;
         private System.Windows.Forms.Button btDownload;
+        private System.Windows.Forms.PictureBox pictureBox1;
     }
 }
 

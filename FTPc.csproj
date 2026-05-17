@@ -56,9 +56,7 @@
     <Compile Include="Config.Designer.cs">
       <DependentUpon>Config.cs</DependentUpon>
     </Compile>
-    <Compile Include="ExecutionLog.cs">
-      <SubType>Form</SubType>
-    </Compile>
+    <Compile Include="ExecutionLog.cs" />
     <Compile Include="Form1.cs">
       <SubType>Form</SubType>
     </Compile>

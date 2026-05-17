@@ -22,9 +22,7 @@ namespace FTPc
         private string host = ""; 
         private string ftpAtu = "";
         private string UltNome = "";
-        private bool _timerEstavaAtivoAntesDownload;
-        private bool _suspendeuTimerPorDownload;
-        private DownloadListForm _downloadListForm;
+
         private void btConfig_Click(object sender, EventArgs e)
         {
             this.Label1.Text = "";
@@ -203,6 +201,7 @@ namespace FTPc
                 btInicio.Text = "Enviar denovo";
                 btInicio.Visible = true;
                 btConfig.Visible = true;
+                btDownload.Visible = true;
                 Label1.Text = Label1.Text+ " já enviado"; 
                 timer1.Interval = (int)this.TempoAtual;
                 timer1.Enabled = true;
@@ -261,6 +260,7 @@ namespace FTPc
         {
             btInicio.Visible = false;
             btConfig.Visible = false;
+            btDownload.Visible = false;
             this.Refresh();
             Inicializa();
             Atualiza(true);
@@ -271,6 +271,15 @@ namespace FTPc
         private void btInicio_Click(object sender, EventArgs e)
         {
             this.ClicouInicio();
+        }
+
+        private void btDownload_Click(object sender, EventArgs e)
+        {
+            timer1.Enabled = false;
+            using (DownloadListForm downloadListForm = new DownloadListForm())
+            {
+                downloadListForm.ShowDialog(this);
+            }
         }
 
         private void Tela_Resize_1(object sender, EventArgs e)
@@ -286,60 +295,6 @@ namespace FTPc
             }
         }
         #endregion
-
-        private async void btDownload_Click(object sender, EventArgs e)
-        {
-            // Para imediatamente o timer ao clicar em Download
-            if (!_suspendeuTimerPorDownload)
-            {
-                _timerEstavaAtivoAntesDownload = this.timer1.Enabled;
-                _suspendeuTimerPorDownload = true;
-            }
-
-            this.timer1.Stop();
-            this.timer1.Enabled = false;
-
-            if (_downloadListForm != null && !_downloadListForm.IsDisposed)
-            {
-                try { _downloadListForm.BringToFront(); } catch { }
-                return;
-            }
-
-            _downloadListForm = new DownloadListForm();
-
-            try
-            {
-                DialogResult result = _downloadListForm.ShowDialog(this);
-                if (result != DialogResult.OK)
-                    return;
-
-                var paths = _downloadListForm.DownloadPaths;
-                if (paths == null || paths.Count == 0)
-                    return;
-
-                await ExecutarDownloadsAsync(paths);
-            }
-            finally
-            {
-                try
-                {
-                    if (_downloadListForm != null)
-                    {
-                        _downloadListForm.Dispose();
-                        _downloadListForm = null;
-                    }
-                }
-                catch { }
-
-                // Retoma timer (se estava ativo antes de abrir a tela)
-                if (_suspendeuTimerPorDownload)
-                {
-                    _suspendeuTimerPorDownload = false;
-                    if (_timerEstavaAtivoAntesDownload)
-                        this.timer1.Enabled = true;
-                }
-            }
-        }
 
     }
 }
