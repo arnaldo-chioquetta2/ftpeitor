@@ -75,10 +75,11 @@ namespace FTPc
             }
         }
 
-        // Manipulador de eventos para o botão Baixar - será implementado na Etapa 4
+        // Manipulador de eventos para o botão Baixar
         private void btnBaixar_Click(object sender, EventArgs e)
         {
-            // Lógica de download será implementada aqui na Etapa 4
+            this.DialogResult = DialogResult.OK;
+            this.Close();
         }
 
         private void InitializeComponent()
