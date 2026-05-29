@@ -99,7 +99,7 @@ namespace FTPc
             MeuIni = new INI();
             this.ftpAtu = this.MeuIni.ReadString("Config", "ftpAtu", "1");
             string Nome = this.MeuIni.ReadString(this.ftpAtu, "nome", "");
-            this.Text = "FTPeia " + Nome;
+            this.Text = "FTPeia " + Nome + " 2.0.7";
         }
 
         #endregion
@@ -108,8 +108,21 @@ namespace FTPc
 
         private void UltAtualizado(String Pasta)
         {
-            DirectoryInfo dirInfo = new DirectoryInfo(Pasta);
-            BuscaArquivos(dirInfo);
+            // Ausencia da pasta local e uma condicao normal (ex.: primeira execucao/sem arquivos).
+            if (string.IsNullOrWhiteSpace(Pasta) || !Directory.Exists(Pasta))
+                return;
+
+            try
+            {
+                DirectoryInfo dirInfo = new DirectoryInfo(Pasta);
+                BuscaArquivos(dirInfo);
+            }
+            catch
+            {
+                // Nao propagar erro para UI; falha de IO/permissao deve apenas impedir a varredura.
+                // Falhas reais de FTP serao tratadas no fluxo de upload/download.
+                return;
+            }
         }
 
         private void BuscaArquivos(DirectoryInfo diret)
@@ -121,7 +134,17 @@ namespace FTPc
 
         private void SearchDirectories(DirectoryInfo objDirectoryInfo)
         {
-            foreach (DirectoryInfo DirectorioInfo in objDirectoryInfo.GetDirectories())
+            DirectoryInfo[] dirs;
+            try
+            {
+                dirs = objDirectoryInfo.GetDirectories();
+            }
+            catch
+            {
+                return;
+            }
+
+            foreach (DirectoryInfo DirectorioInfo in dirs)
             {
                 if ((DirectorioInfo.Exists == true) && (DirectorioInfo.Name != "System Volume Information") && (DirectorioInfo.Name != "RECYCLER"))
                 {
@@ -134,10 +157,20 @@ namespace FTPc
         private void SearchFiles(DirectoryInfo info)
         {
             List<string> extensoesPermitidas = new List<string> { ".php", ".js", ".css" , ".html", ".apk" , ".jpg"};
-            FileInfo[] arquivos = info.GetFiles()
-                .Where(arquivo => extensoesPermitidas.Contains(arquivo.Extension.ToLower()))
-                .OrderByDescending(arquivo => arquivo.CreationTime)
-                .ToArray();
+
+            FileInfo[] arquivos;
+            try
+            {
+                arquivos = info.GetFiles()
+                    .Where(arquivo => extensoesPermitidas.Contains(arquivo.Extension.ToLower()))
+                    .OrderByDescending(arquivo => arquivo.CreationTime)
+                    .ToArray();
+            }
+            catch
+            {
+                return;
+            }
+
             foreach (FileInfo arquivo in arquivos)
             {
                 DateTime EssaData = arquivo.LastWriteTime;
@@ -155,6 +188,31 @@ namespace FTPc
         private bool Atualiza(bool forcado = false)
         {
             UltAtualizado(this.camLocal);
+
+            // Se nao existe arquivo local elegivel (ou a pasta nao existe), isso nao e erro.
+            if (ArqEsc == null)
+            {
+                ProgressBar1.Visible = false;
+                lbErro.Visible = false;
+
+                if (string.IsNullOrWhiteSpace(this.camLocal) || !Directory.Exists(this.camLocal))
+                {
+                    this.Text = "FTPeia";
+                    Label1.Text = "Pasta local nao encontrada; aguardando arquivos para enviar.";
+                    ExecutionLog.Write("[Upload] Info: pasta local inexistente ou nao acessivel. CamLocal='" + (this.camLocal ?? "") + "'.");
+                }
+                else
+                {
+                    this.Text = "FTPeia";
+                    Label1.Text = "Nenhum arquivo local elegivel encontrado para envio.";
+                    ExecutionLog.Write("[Upload] Info: nenhum arquivo elegivel encontrado em CamLocal='" + (this.camLocal ?? "") + "'.");
+                }
+
+                timer1.Interval = (int)this.TempoAtual;
+                timer1.Enabled = true;
+                return false;
+            }
+
             this.Text = "Ftpeia : " + ArqEsc.Name;
             Label1.Text = ArqEsc.FullName;
             Console.WriteLine(ArqEsc.FullName);
@@ -164,13 +222,27 @@ namespace FTPc
             {
                 this.UltNome = ese;
                 this.UltData = DtGrv;
-                int pos = ArqEsc.FullName.IndexOf(this.PastaBaseFTP.Replace("/", "\\"));
-                string CamfTP = ArqEsc.FullName.Substring(pos);
-                string NmArq = ArqEsc.Name;
-                if (CamfTP.EndsWith(NmArq))
+
+                string diretorioLocalArquivo = Path.GetDirectoryName(ArqEsc.FullName);
+                string relativo = ObterCaminhoRelativo(this.camLocal, diretorioLocalArquivo);
+                string CamfTP = CombinarCaminhoFtp(this.PastaBaseFTP, relativo);
+                if (CamfTP.Contains(":"))
                 {
-                    CamfTP = CamfTP.Remove(CamfTP.Length - NmArq.Length);
+                    //this.cFPT.setErro("Caminho FTP invalido. O campo Caminho FTP nao pode conter caminho local Windows: " + CamfTP);
+                    lbErro.Text = this.cFPT.getErro();
+                    lbErro.Visible = true;
+                    timer1.Enabled = false;
+                    return false;
                 }
+
+                //int pos = ArqEsc.FullName.IndexOf(this.PastaBaseFTP.Replace("/", "\\"));
+                //string CamfTP = ArqEsc.FullName.Substring(pos);
+                //string NmArq = ArqEsc.Name;
+                //if (CamfTP.EndsWith(NmArq))
+                //{
+                //    CamfTP = CamfTP.Remove(CamfTP.Length - NmArq.Length);
+                //}
+
                 if (this.cFPT.Upload(ese, CamfTP))
                 {
                     lbErro.Visible = false;
@@ -209,6 +281,62 @@ namespace FTPc
                 timer1.Enabled = true;
                 return false;
             }
+        }
+
+        private static string ObterCaminhoRelativo(string raizLocal, string caminhoLocal)
+        {
+            if (string.IsNullOrWhiteSpace(raizLocal))
+                throw new InvalidOperationException("Caminho Local nao configurado.");
+
+            if (string.IsNullOrWhiteSpace(caminhoLocal))
+                return "";
+
+            string raiz = Path.GetFullPath(raizLocal)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                + Path.DirectorySeparatorChar;
+
+            string caminho = Path.GetFullPath(caminhoLocal);
+
+            if (!caminho.StartsWith(raiz, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    "O arquivo encontrado nao esta dentro do Caminho Local configurado. " +
+                    "Arquivo: " + caminho + " | Caminho Local: " + raiz
+                );
+            }
+
+            Uri raizUri = new Uri(raiz);
+            Uri caminhoUri = new Uri(caminho);
+
+            string relativo = Uri.UnescapeDataString(
+                raizUri.MakeRelativeUri(caminhoUri).ToString()
+            );
+
+            if (relativo == ".")
+                relativo = "";
+
+            return relativo.Replace("\\", "/").Trim('/');
+        }
+
+        private static string CombinarCaminhoFtp(string baseFtp, string relativo)
+        {
+            baseFtp = (baseFtp ?? "").Replace("\\", "/").Trim('/');
+            relativo = (relativo ?? "").Replace("\\", "/").Trim('/');
+
+            if (baseFtp.Contains(":"))
+            {
+                throw new InvalidOperationException(
+                    "Caminho FTP invalido. Informe um caminho remoto, nao um caminho local Windows: " + baseFtp
+                );
+            }
+
+            if (baseFtp.Length == 0)
+                return relativo;
+
+            if (relativo.Length == 0)
+                return baseFtp;
+
+            return baseFtp + "/" + relativo;
         }
 
         private void timer1_Tick(object sender, EventArgs e)
